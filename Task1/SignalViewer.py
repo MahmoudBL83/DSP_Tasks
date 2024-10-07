@@ -14,19 +14,32 @@ from PyQt5.QtGui import QIcon , QFont, QPixmap # Package to set an icon , fonts 
 from PyQt5.QtCore import Qt , QTimer  # used for alignments.
 from PyQt5.QtWidgets import QLayout , QVBoxLayout , QHBoxLayout, QGridLayout ,QWidget, QFileDialog, QPushButton
 import pyqtgraph as pg
-
-# Important Variables
-num_of_files = 0
+from LinkWindow import LinkWindow
 
 
 class Ui_MainWindow(QMainWindow):
 
+    # Important Variables
+    max_num_of_file= 4 
+    num_of_files= 0 # To get the Maximum Number of files can user draw in the Graph.
+    graph_1_files= []
+    graph_2_files=[]
+    all_signals=[]
+
+    # Constructing the Main Window.
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Multi Channel Signal Viewer")
         self.resize(1290, 909)
-        self.setupUiElements()
         self.setStyleSheet("Background-color:#F0F0F0;")
+        self.timer = QTimer(self) # Used primarly for cine mode
+        self.time_index = 0 # For Cine Mode Scrolling
+        self.setupUiElements()
+    
+    def linkSignals(self):
+        self.linkWindow = LinkWindow()
+        self.linkWindow.show()
+        self.linkWindow.signalsPlotting(self.all_signals)
 
     def setupUiElements(self):
         
@@ -182,6 +195,7 @@ class Ui_MainWindow(QMainWindow):
         self.browse_file_1.setStyleSheet("font-weight:bold;font-size:16px;background-color:white")
         self.browse_file_1.setObjectName("browse_file_1")
         self.browse_file_1.setCursor(QtGui.QCursor(QtCore.Qt.PointingHandCursor))
+        self.browse_file_1.clicked.connect(lambda : self.openSignalFile(self.graph1))
 
         #-- Graph 1 Transfer --#
         self.change_to_graph_2 = QPushButton("Move to Graph 2 👇", self.Graph1_Section)
@@ -253,7 +267,7 @@ class Ui_MainWindow(QMainWindow):
         self.Graph2_Section = QtWidgets.QWidget(self.centralwidget)
         self.Graph2_Section.setGeometry(QtCore.QRect(0, 440, 1281, 421))
         self.Graph2_Section.setObjectName("Graph2_Section")
-        self.Graph2 = QtWidgets.QWidget(self.Graph2_Section)
+        self.Graph2 = QWidget(self.Graph2_Section)
         self.Graph2.setGeometry(QtCore.QRect(59, 29, 861, 261))
         self.Graph2.setObjectName("Graph1_2")
         graph_2_layout = QVBoxLayout(self.Graph2)
@@ -395,7 +409,9 @@ class Ui_MainWindow(QMainWindow):
         self.browse_file_2.setGeometry(QtCore.QRect(800, 350, 131, 41))
         self.browse_file_2.setStyleSheet("font-weight:bold;font-size:16px;background-color:white")
         self.browse_file_2.setObjectName("browse_file_2")
-        
+        self.browse_file_2.clicked.connect(lambda: self.openSignalFile(self.graph2))
+
+
         self.Change_color_2 = QtWidgets.QPushButton("Change Color",self.Graph2_Section)
         self.Change_color_2.setGeometry(QtCore.QRect(640, 350, 151, 41))
         self.Change_color_2.setStyleSheet("font-weight:bold;font-size:16px;background-color:white")
@@ -462,53 +478,109 @@ class Ui_MainWindow(QMainWindow):
         self.menubar.setStyleSheet("QMenuBar { background-color: white; }")
 
 
-        self.menuOptions = QtWidgets.QMenu(self.menubar)
+        self.menuOptions = QtWidgets.QMenu("Signal Options",self.menubar)
         self.menuOptions.setObjectName("Signal Options")
         self.setMenuBar(self.menubar)
 
         
-        self.actionLink_Signals = QtWidgets.QAction(self)
+        self.actionLink_Signals = QtWidgets.QAction("Link Signals",self)
         self.actionLink_Signals.setObjectName("Link Signals")
-        self.actionSignal_Glue = QtWidgets.QAction(self)
+        self.actionLink_Signals.triggered.connect(self.linkSignals)
+
+        self.actionSignal_Glue = QtWidgets.QAction("Signal Glue",self)
         self.actionSignal_Glue.setObjectName("Signal Glue")
+
         self.menuOptions.addAction(self.actionLink_Signals)
         self.menuOptions.addAction(self.actionSignal_Glue)
         self.menubar.addAction(self.menuOptions.menuAction())
 
         self.coordinates = self.menubar.addMenu('Bla Bla Coordinates')
 
-        self.retranslateUi()
         QtCore.QMetaObject.connectSlotsByName(self)
 
-    def retranslateUi(self):
-        _translate = QtCore.QCoreApplication.translate
-        self.menuOptions.setTitle(_translate("MainWindow", "Signal Options"))
-        self.actionLink_Signals.setText(_translate("MainWindow", "Link Signals"))
-        self.actionSignal_Glue.setText(_translate("MainWindow", "Signal Glue"))
 
 
-    def openSignalFile(self):
-        #Open File Explorer Window
+    def openSignalFile(self, Graph):
         options = QFileDialog.Options()
-        file, _ = QFileDialog.getOpenFileName(self, "Open Signal File", "", "Signal Files (*.edf *.txt)", options=options)
-        if file:
+        # file_path -> Directory , _ -> the filteration (dummy)
+        file_path, _ = QFileDialog.getOpenFileName(self, "Open Signal File", "", "File Extension (*.csv *.dat)", options=options)
+        
+        if file_path:  # if user chooses a file
             try:
-                # Parse Signal Data From the File.
-                signal_data = self.load_signal(file)
-                # Plot this data in the Graph.
-                self.plot_signal(self.graph1, signal_data)
-            except Exception as e:
-                print(f"Error loading file: {e}")
-    
-    def load_signal(self, file_path):
-        return np.loadtxt(file_path, delimiter=',')
+                # Load the Data from the file
+                signalData = self.loadSignalData(file_path)
 
-    def plot_signal(self, graph, signal_data):
-        graph.plot(signal_data[:, 1], pen='g') 
+                # Ensure signalData is exist.
+                if signalData is None:
+                    print("No valid signal data found.")
+                    return
+                
+                self.all_signals.append(file_path)
+                print(self.all_signals)
+                # Plot the data with cine mode
+                self.signalPlotting(Graph, signalData)    
+            except Exception as e:
+                print(f"Couldn't open signal file: {str(e)}")
+
+    def loadSignalData(self, file_path):
+        try:
+            # Load the Signal file.
+            signalData = np.loadtxt(file_path, delimiter=',')
+            
+            # Check if any data was actually loaded
+            if signalData is None or signalData.size == 0:
+                print(f"File at {file_path} contains no data.")
+                return None
+            
+            # If the data is 1D, reshape it to 2D (for graph plotting)
+            if signalData.ndim == 1:
+                signalData = signalData[:, np.newaxis]
+            
+            return signalData
+        except ValueError as ve:
+            print(f"Failed to load signal data from {file_path}: {ve}")
+            return None
+        except FileNotFoundError:
+            print(f"File not found: {file_path}")
+            return None
+        except Exception as e:
+            print(f"An unexpected error occurred while loading signal data: {e}")
+            return None
+
+    
+    # My Methodology in cine mode i will plot the whole dataset and i will slide through to make the effect of dynamic mode.
+    def signalPlotting(self, Graph, signalData):
+        # Plot the Signal data
+        Graph.clear()
+        Graph.plot(signalData[:,1])
+
+        self.time_index = 0 # start plotting from x(time) = 0
+        self.timer.timeout.connect(lambda: self.slide_through_data(Graph, signalData))
+        self.timer.start(250) # 100 ms delay between each point plotting.
+
+    def slide_through_data(self, Graph, signalData):
+        # Ensure the data is valid
+        windowSize= 70
+        if signalData is None or len(signalData) == 0:
+            print("No signal data to slide.")
+            return
+        
+        # Calculate the range of data to display (window)
+        if self.time_index + windowSize <= len(signalData):
+            # Adjust the x-axis range to simulate sliding effect
+            Graph.setXRange(self.time_index, self.time_index + windowSize, padding=0)
+            
+            # Increment the time index by step size for the next frame
+            self.time_index += 1
+        else:
+            # Stop when reaching the end of the signal
+            self.timer.stop()
+            print("Finished sliding through the entire signal.")
+
+
 
 
 def main():
-
     app = QApplication(sys.argv)
     MainWindow = Ui_MainWindow()
     MainWindow.show()
@@ -517,8 +589,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-
-
-#self.graph = pg.PlotWidget(title="Cine Mode Signal")
-#
