@@ -14,7 +14,7 @@ from PyQt5.QtGui import QIcon , QFont, QPixmap # Package to set an icon , fonts 
 from PyQt5.QtCore import Qt , QTimer  # used for alignments.
 from PyQt5.QtWidgets import QLayout , QVBoxLayout , QHBoxLayout, QGridLayout ,QWidget, QFileDialog, QPushButton
 import pyqtgraph as pg
-from LinkWindow import LinkWindow
+from SignalGlue import SignalGlue_MainWindow
 
 
 class Ui_MainWindow(QMainWindow):
@@ -25,6 +25,7 @@ class Ui_MainWindow(QMainWindow):
     graph_1_files= []
     graph_2_files=[]
     all_signals=[]
+    
 
     # Constructing the Main Window.
     def __init__(self):
@@ -32,14 +33,23 @@ class Ui_MainWindow(QMainWindow):
         self.setWindowTitle("Multi Channel Signal Viewer")
         self.resize(1290, 909)
         self.setStyleSheet("Background-color:#F0F0F0;")
-        self.timer = QTimer(self) # Used primarly for cine mode
-        self.time_index = 0 # For Cine Mode Scrolling
+        self.linkedSignals = False
+
+        self.timer_graph_1 = QTimer(self) # Used primarly for cine mode
+        self.time_index_graph_1 = 0 # For Cine Mode Scrolling
+        
+        self.timer_graph_2 = QTimer(self) # Used primarly for cine mode
+        self.time_index_graph_2 = 0 # For Cine Mode Scrolling
+        
+        self.timer_linked_graphs = QTimer(self) # Used primarly for cine mode
+        self.time_index_linked_graphs = 0 # For Cine Mode Scrolling
         self.setupUiElements()
+        self.windowSize= 70
     
-    def linkSignals(self):
-        self.linkWindow = LinkWindow()
-        self.linkWindow.show()
-        self.linkWindow.signalsPlotting(self.all_signals)
+    def glueSignals(self):
+        self.signalGlue = SignalGlue_MainWindow()
+        self.signalGlue.show()
+        self.signalGlue.signalsPlotting(self.all_signals)
 
     def setupUiElements(self):
         
@@ -71,8 +81,19 @@ class Ui_MainWindow(QMainWindow):
         self.graph_1_V_slider.setObjectName("graph_1_V_slider")
         
         #-- Graph 1 Zoom In --#
+        self.sideWidget_1 = QWidget(self.Graph1_Section)
+        self.sideWidget_1.setGeometry(QtCore.QRect(970, 20, 300, 350))
+        self.sideWidget_1.setStyleSheet("""
+        QWidget{
+            background-color: white;
+            border-radius: 10px;
+            border: 2px solid black;
+        }                          
+        """)
+        self.sideWidget_1.setObjectName("sideButtonsWidget")
+        
         self.zoom_in_graph1 = QtWidgets.QPushButton("+" ,self.Graph1_Section)
-        self.zoom_in_graph1.setGeometry(QtCore.QRect(1000, 150, 100, 100))
+        self.zoom_in_graph1.setGeometry(QtCore.QRect(1005, 150, 100, 100))
         self.zoom_in_graph1.setCursor(QtGui.QCursor(QtCore.Qt.PointingHandCursor))
         self.zoom_in_graph1.setStyleSheet("""
             QPushButton {
@@ -102,7 +123,7 @@ class Ui_MainWindow(QMainWindow):
         
         #-- Graph 1 Zoom Out --#
         self.zoom_out_graph1 = QtWidgets.QPushButton("-", self.Graph1_Section)
-        self.zoom_out_graph1.setGeometry(QtCore.QRect(1130, 150, 100, 100))
+        self.zoom_out_graph1.setGeometry(QtCore.QRect(1135, 150, 100, 100))
         self.zoom_out_graph1.setCursor(QtGui.QCursor(QtCore.Qt.PointingHandCursor))
         self.zoom_out_graph1.setStyleSheet("""
             QPushButton {
@@ -195,11 +216,11 @@ class Ui_MainWindow(QMainWindow):
         self.browse_file_1.setStyleSheet("font-weight:bold;font-size:16px;background-color:white")
         self.browse_file_1.setObjectName("browse_file_1")
         self.browse_file_1.setCursor(QtGui.QCursor(QtCore.Qt.PointingHandCursor))
-        self.browse_file_1.clicked.connect(lambda : self.openSignalFile(self.graph1))
+        self.browse_file_1.clicked.connect(lambda : self.openSignalFile(self.graph1, 1))
 
         #-- Graph 1 Transfer --#
         self.change_to_graph_2 = QPushButton("Move to Graph 2 👇", self.Graph1_Section)
-        self.change_to_graph_2.setGeometry(QtCore.QRect(1015, 360, 180, 40))
+        self.change_to_graph_2.setGeometry(QtCore.QRect(1030, 320, 180, 40))
         self.change_to_graph_2.setStyleSheet("""
             QPushButton {
                 background-color: white;
@@ -241,7 +262,7 @@ class Ui_MainWindow(QMainWindow):
         self.slow_speed_1.setCursor(QtGui.QCursor(QtCore.Qt.PointingHandCursor))
         
         #-- Graph 1 Stop Simulating --#
-        self.stop_graph_1 = QtWidgets.QPushButton("Stop", self.Graph1_Section)
+        self.stop_graph_1 = QtWidgets.QPushButton("Pause", self.Graph1_Section)
         self.stop_graph_1.setCursor(QtGui.QCursor(QtCore.Qt.PointingHandCursor))
         self.stop_graph_1.setStyleSheet("font-weight:bold;font-size:16px;background-color:white")
         self.stop_graph_1.setObjectName("start_graph_1")
@@ -274,15 +295,26 @@ class Ui_MainWindow(QMainWindow):
         self.graph2 = pg.PlotWidget(title="Graph 2 Signals")
         graph_2_layout.addWidget(self.graph2)
 
-        self.graph_1_H_slider_2 = QSlider(self.Graph2_Section)
-        self.graph_1_H_slider_2.setGeometry(QtCore.QRect(60, 300, 871, 22))
-        self.graph_1_H_slider_2.setOrientation(QtCore.Qt.Horizontal)
-        self.graph_1_H_slider_2.setObjectName("graph_1_H_slider_2")
+        self.graph_2_H_slider = QSlider(self.Graph2_Section)
+        self.graph_2_H_slider.setGeometry(QtCore.QRect(60, 300, 871, 22))
+        self.graph_2_H_slider.setOrientation(QtCore.Qt.Horizontal)
+        self.graph_2_H_slider.setObjectName("graph_1_H_slider_2")
         
-        self.graph_1_V_slider_2 = QtWidgets.QSlider(self.Graph2_Section)
-        self.graph_1_V_slider_2.setGeometry(QtCore.QRect(940, 30, 22, 251))
-        self.graph_1_V_slider_2.setOrientation(QtCore.Qt.Vertical)
-        self.graph_1_V_slider_2.setObjectName("graph_1_V_slider_2")
+        self.graph_2_V_slider = QtWidgets.QSlider(self.Graph2_Section)
+        self.graph_2_V_slider.setGeometry(QtCore.QRect(940, 30, 22, 251))
+        self.graph_2_V_slider.setOrientation(QtCore.Qt.Vertical)
+        self.graph_2_V_slider.setObjectName("graph_1_V_slider_2")
+        
+        self.sideWidget_2 = QWidget(self.Graph2_Section)
+        self.sideWidget_2.setGeometry(QtCore.QRect(970, 20, 300, 350))
+        self.sideWidget_2.setStyleSheet("""
+        QWidget{
+            background-color: white;
+            border-radius: 10px;
+            border: 2px solid black;
+        }                          
+        """)
+        self.sideWidget_2.setObjectName("sideButtonsWidget2")
         
         self.zoom_in_graph2 = QtWidgets.QPushButton("+",self.Graph2_Section)
         self.zoom_in_graph2.setGeometry(QtCore.QRect(1000, 150, 100, 100))
@@ -409,7 +441,7 @@ class Ui_MainWindow(QMainWindow):
         self.browse_file_2.setGeometry(QtCore.QRect(800, 350, 131, 41))
         self.browse_file_2.setStyleSheet("font-weight:bold;font-size:16px;background-color:white")
         self.browse_file_2.setObjectName("browse_file_2")
-        self.browse_file_2.clicked.connect(lambda: self.openSignalFile(self.graph2))
+        self.browse_file_2.clicked.connect(lambda: self.openSignalFile(self.graph2 , 2))
 
 
         self.Change_color_2 = QtWidgets.QPushButton("Change Color",self.Graph2_Section)
@@ -446,7 +478,7 @@ class Ui_MainWindow(QMainWindow):
         
         #-- Graph 2 Transfer --#
         self.change_to_graph_1 = QPushButton("Move to Graph 1 👆", self.Graph2_Section)
-        self.change_to_graph_1.setGeometry(QtCore.QRect(1020, 350, 180, 40))
+        self.change_to_graph_1.setGeometry(QtCore.QRect(1020, 320, 180, 40))
         self.change_to_graph_1.setStyleSheet("""
             QPushButton {
                 background-color: white;
@@ -467,9 +499,6 @@ class Ui_MainWindow(QMainWindow):
         self.change_to_graph_1.setObjectName("move_to_graph_2")
         self.change_to_graph_1.setCursor(QtGui.QCursor(QtCore.Qt.PointingHandCursor))
 
-        
-
-
         # Menu Bar for more features.
         self.setCentralWidget(self.centralwidget)
         self.menubar = QtWidgets.QMenuBar(self)
@@ -485,10 +514,11 @@ class Ui_MainWindow(QMainWindow):
         
         self.actionLink_Signals = QtWidgets.QAction("Link Signals",self)
         self.actionLink_Signals.setObjectName("Link Signals")
-        self.actionLink_Signals.triggered.connect(self.linkSignals)
+        self.actionLink_Signals.triggered.connect(self.toggleLinkedSignals)
 
         self.actionSignal_Glue = QtWidgets.QAction("Signal Glue",self)
         self.actionSignal_Glue.setObjectName("Signal Glue")
+        self.actionSignal_Glue.triggered.connect(self.glueSignals)
 
         self.menuOptions.addAction(self.actionLink_Signals)
         self.menuOptions.addAction(self.actionSignal_Glue)
@@ -499,8 +529,10 @@ class Ui_MainWindow(QMainWindow):
         QtCore.QMetaObject.connectSlotsByName(self)
 
 
+    def toggleLinkedSignals(self):
+        self.linkedSignals = not self.linkedSignals
 
-    def openSignalFile(self, Graph):
+    def openSignalFile(self, Graph, graphNum):
         options = QFileDialog.Options()
         # file_path -> Directory , _ -> the filteration (dummy)
         file_path, _ = QFileDialog.getOpenFileName(self, "Open Signal File", "", "File Extension (*.csv *.dat)", options=options)
@@ -515,10 +547,16 @@ class Ui_MainWindow(QMainWindow):
                     print("No valid signal data found.")
                     return
                 
+                if graphNum == 1:
+                    self.graph_1_files.append(file_path)
+                else:
+                    self.graph_2_files.append(file_path)
+
                 self.all_signals.append(file_path)
                 print(self.all_signals)
                 # Plot the data with cine mode
-                self.signalPlotting(Graph, signalData)    
+                self.signalPlotting(Graph, signalData, graphNum) 
+
             except Exception as e:
                 print(f"Couldn't open signal file: {str(e)}")
 
@@ -549,35 +587,75 @@ class Ui_MainWindow(QMainWindow):
 
     
     # My Methodology in cine mode i will plot the whole dataset and i will slide through to make the effect of dynamic mode.
-    def signalPlotting(self, Graph, signalData):
-        # Plot the Signal data
+    def signalPlotting(self, Graph, signalData,GraphNum):
         Graph.clear()
-        Graph.plot(signalData[:,1])
 
-        self.time_index = 0 # start plotting from x(time) = 0
-        self.timer.timeout.connect(lambda: self.slide_through_data(Graph, signalData))
-        self.timer.start(250) # 100 ms delay between each point plotting.
+        # Start timer and update signal plotting
+        if self.linkedSignals :
+            self.timer_graph_1.stop()
+            self.timer_graph_2.stop()
+            self.time_index_linked_graphs=0
+            self.timer_linked_graphs.timeout.connect(lambda: self.slide_through_data(Graph,signalData))
+            self.timer_linked_graphs.start(200)
+        else:
+            if GraphNum == 1:
+                self.time_index_graph_1=0
+                self.timer_graph_1.timeout.connect(lambda: self.slide_through_data(Graph,signalData, GraphNum))
+                self.timer_graph_1.start(200)
+            else:
+                self.time_index_graph_2=0
+                self.timer_graph_2.timeout.connect(lambda: self.slide_through_data(Graph,signalData, GraphNum))
+                self.timer_graph_2.start(200)
 
-    def slide_through_data(self, Graph, signalData):
-        # Ensure the data is valid
-        windowSize= 70
-        if signalData is None or len(signalData) == 0:
-            print("No signal data to slide.")
+    def slide_through_data(self, Graph, signalData, GraphNum):
+        if signalData is None or len(signalData) ==0:
+            print("There's not signal data.")
             return
         
-        # Calculate the range of data to display (window)
-        if self.time_index + windowSize <= len(signalData):
-            # Adjust the x-axis range to simulate sliding effect
-            Graph.setXRange(self.time_index, self.time_index + windowSize, padding=0)
-            
-            # Increment the time index by step size for the next frame
-            self.time_index += 1
+        # Plot the signal at this time index.
+        if self.linkedSignals:
+            Graph.clear()
+            Graph.plot(signalData[:self.time_index_linked_graphs + 1,1])
+            if self.time_index_linked_graphs > self.windowSize:
+                Graph.setXRange(self.time_index_linked_graphs - self.windowSize + 1, self.time_index_linked_graphs + 1)
+            else:
+                Graph.setXRange(0, self.windowSize)
+
+            self.time_index_linked_graphs += 1
+            if self.time_index_linked_graphs > len(signalData):
+                self.timer_linked_graphs.stop()
+        
         else:
-            # Stop when reaching the end of the signal
-            self.timer.stop()
-            print("Finished sliding through the entire signal.")
+            if GraphNum == 1:
+                Graph.plot(signalData[:self.time_index_graph_1 + 1,1] , pen='r')
+                if self.time_index_graph_1 > self.windowSize:
+                    Graph.setXRange(self.time_index_graph_1 - self.windowSize + 1, self.time_index_graph_1 + 1)
+                else:
+                    Graph.setXRange(0, self.windowSize)
 
+                self.time_index_graph_1 += 1
+                if self.time_index_graph_1 > len(signalData):
+                    self.timer_graph_1.stop()
+            else:
+                Graph.plot(signalData[:self.time_index_graph_2 + 1,1] , pen='b')
+                if self.time_index_graph_2 > self.windowSize:
+                    Graph.setXRange(self.time_index_graph_2 - self.windowSize + 1, self.time_index_graph_2 + 1)
+                else:
+                    Graph.setXRange(0, self.windowSize)
 
+                self.time_index_graph_2 += 1
+                if self.time_index_graph_2 > len(signalData):
+                    self.timer_graph_2.stop()
+
+    
+    def generate_ecg_signal(self, x):
+        """Generate a synthetic ECG-like signal"""
+        # ECG signal model (combination of sine waves and noise)
+        ecg = np.sin(1.7 * np.pi * x)  # Simulate R peaks
+        ecg += 0.5 * np.sin(3.7 * np.pi * x)  # Simulate P and T waves
+        ecg += 0.2 * np.sin(7.0 * np.pi * x)  # Simulate finer fluctuations
+        #ecg += 0.05 * np.random.normal(size=len(x))  # Add some noise to simulate variability
+        return ecg
 
 
 def main():
